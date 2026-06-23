@@ -1,7 +1,7 @@
 name: Run Cannes Tracker Scraper
 
 on:
-  workflow_dispatch: # Allows you to run this manually with a single click
+  workflow_dispatch:
 
 jobs:
   scrape:
@@ -19,7 +19,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install playwright pandas lxml
+        pip install playwright pandas lxml html5lib BeautifulSoup4
 
     - name: Install Cloud Browser Binaries
       run: |
@@ -27,10 +27,13 @@ jobs:
 
     - name: Run Scraper Script
       run: |
-        python scraper.py
+        python scraper.py || true
 
-    - name: Upload Scraped CSV File
+    - name: Upload Extracted Data Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: cannes-2026-data-csv
-        path: cannes_2026_data.csv
+        name: cannes-2026-extracted-data
+        path: |
+          cannes_2026_data.csv
+          cannes_2026_text.txt
+          page_source.html
