@@ -9,22 +9,22 @@ async def scrape_cannes_tracker():
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
         
-        print("Opening tracker...")
+        url = "https://cannes26tracker.netlify.app/"
+        print(f"Opening tracker at {url}...")
         try:
-            await page.goto("https://cannes26tracker.netlify.app/", timeout=60000)
+            await page.goto(url, timeout=60000)
         except Exception as e:
-            print(f"Failed to load page: {e}")
+            print(f"ERROR: Failed to load page: {e}")
             await browser.close()
             sys.exit(1)
         
         print("Waiting for dynamic data to populate...")
         try:
-            # Wait up to 20 seconds for the loading state text to disappear
+            # Wait for loader element to vanish
             await page.wait_for_selector("text=Cargando tracker…", state="detached", timeout=20000)
-            # Give it 2 extra seconds just to ensure the DOM fully renders
-            await page.wait_for_timeout(2000)
-        except Exception:
-            print("Note: Loader element timeout or fast load. Proceeding to read content...")
+            await page.wait_for_timeout(3000)  # Safe buffer for table rendering
+        except Exception as e:
+            print(f"Note on wait selector: {e}. Proceeding anyway...")
 
         html_content = await page.content()
         body_text = await page.evaluate("() => document.body.innerText")
@@ -32,24 +32,23 @@ async def scrape_cannes_tracker():
         print("\n--- Raw Data Preview ---")
         print(body_text[:1500])
         
-        # Save raw HTML to help diagnose if pandas fails again
+        # Save raw assets for download backup
         with open("page_source.html", "w", encoding="utf-8") as f:
             f.write(html_content)
+        with open("cannes_2026_text.txt", "w", encoding="utf-8") as f:
+            f.write(body_text)
 
+        # Attempt to parse HTML tables
         try:
-            dfs = pd.read_html(html_content)
+            dfs = pd.read_html(html_content, flavor='html5lib')
             if dfs:
-                print(f"\nFound {len(dfs)} table(s)! Saving to 'cannes_2026_data.csv'...")
+                print(f"\nSuccess! Found {len(dfs)} table(s). Saving data to CSV...")
                 dfs[0].to_csv("cannes_2026_data.csv", index=False)
-                print("CSV file generated successfully.")
+                print("CSV file generated.")
             else:
-                print("\nNo HTML tables detected. Saving raw text content instead.")
-                with open("cannes_2026_text.txt", "w", encoding="utf-8") as f:
-                    f.write(body_text)
+                print("\nNo standard <table> elements detected. Content likely utilizes a div/grid structure.")
         except Exception as e:
-            print(f"\nPandas read_html failed: {e}. Saving raw text content as a backup.")
-            with open("cannes_2026_text.txt", "w", encoding="utf-8") as f:
-                f.write(body_text)
+            print(f"\nPandas parsing bypassed or failed: {e}.")
 
         await browser.close()
 
